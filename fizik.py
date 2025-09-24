@@ -14,8 +14,8 @@ col1, col2, col3 = st.columns([1,1,1])
 # --- Sol Panel: Girişler ---
 with col1:
     st.header("Girişler")
-    mass = st.number_input("Cisim Kütlesi (kg)", value=0.05, min_value=0.001, max_value=100.0, step=0.01)
-    height = st.number_input("Başlangıç Yüksekliği (m)", value=2.0, min_value=0.01, max_value=100.0, step=0.1)
+    mass = st.number_input("Cisim Kütlesi (kg)", value=0.05, min_value=0.001, max_value=1000.0, step=0.01)
+    height = st.number_input("Başlangıç Yüksekliği (m)", value=2.0, min_value=0.01, max_value=1000.0, step=0.1)
     env_option = st.radio("Ortam Seçimi:", ["Hava Direnci Yok (Vakum)", "Hava Direnci Var (Hava)"])
     start = st.button("Simülasyonu Başlat")
 
