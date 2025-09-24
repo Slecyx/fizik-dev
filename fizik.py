@@ -14,8 +14,8 @@ col1, col2, col3 = st.columns([1,1,1])
 # --- Sol Panel: Girişler ---
 with col1:
     st.header("Girişler")
-    mass = st.number_input("Cisim Kütlesi (kg)", value=0.05, min_value=0.01, max_value=1.0, step=0.01)
-    height = st.number_input("Başlangıç Yüksekliği (m)", value=2.0, min_value=0.1, max_value=20.0, step=0.1)
+    mass = st.number_input("Cisim Kütlesi (kg)", value=0.05, min_value=0.001, max_value=100.0, step=0.01)
+    height = st.number_input("Başlangıç Yüksekliği (m)", value=2.0, min_value=0.01, max_value=100.0, step=0.1)
     env_option = st.radio("Ortam Seçimi:", ["Hava Direnci Yok (Vakum)", "Hava Direnci Var (Hava)"])
     start = st.button("Simülasyonu Başlat")
 
@@ -41,7 +41,21 @@ def simulate_fall(m, h0, k):
 
 # --- Başlatma ---
 if start:
+    # Kullanıcı hataları kontrolü
+    if mass <= 0:
+        st.warning("Kütle pozitif olmalı! Varsayılan 0.05 kg kullanılıyor.")
+        mass = 0.05
+    if height <= 0:
+        st.warning("Yükseklik pozitif olmalı! Varsayılan 2 m kullanılıyor.")
+        height = 2.0
+    if env_option not in ["Hava Direnci Yok (Vakum)", "Hava Direnci Var (Hava)"]:
+        st.warning("Ortam seçimi geçersiz, Vakum varsayıldı.")
+        env_option = "Hava Direnci Yok (Vakum)"
+
+    # Hava direnci katsayısı
     k = default_k if env_option=="Hava Direnci Var (Hava)" else 0.0
+    
+    # Simülasyon
     t, y, v, a = simulate_fall(mass, height, k)
     
     time_to_ground = t[-1]
