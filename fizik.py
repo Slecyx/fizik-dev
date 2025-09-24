@@ -1,38 +1,47 @@
 import streamlit as st
 import matplotlib.pyplot as plt
 import numpy as np
-from PIL import Image
-import io
+from matplotlib.animation import FuncAnimation
+from matplotlib.backends.backend_agg import RendererAgg
 import time
 
-st.set_page_config(layout="wide")  # Geniş ekran kullanımı
+_lock = RendererAgg.lock
 
 # Fizik sabitleri
 g = 9.81
-default_k = 0.47
+default_k = 0.47  # Hava direnci katsayısı
 
-# Layout: 3 kolon
-col1, col2, col3 = st.columns([2, 3, 3])  # oranlar: solda 2, orta 3, sağ 3
+st.set_page_config(layout="wide", page_title="Serbest Düşme Simülasyonu")
 
-# ====== SOL KOLON: Kullanıcı Girdileri ======
+# Layout: üç kolon
+col1, col2, col3 = st.columns([1,1,1])
+
+# --- Sol Panel: Girişler ---
 with col1:
-    st.header("Simülasyon Ayarları")
-    mass = st.number_input("Cisim Kütlesi (kg)", min_value=0.001, value=0.05, step=0.01)
-    height = st.number_input("Başlangıç Yüksekliği (m)", min_value=0.1, value=2.0, step=0.1)
-    env = st.radio("Ortam Seçimi", ["Vakum", "Hava"])
+    st.header("Girişler")
+    mass = st.number_input("Cisim Kütlesi (kg)", value=0.05, min_value=0.01, max_value=1.0, step=0.01)
+    height = st.number_input("Başlangıç Yüksekliği (m)", value=2.0, min_value=0.1, max_value=20.0, step=0.1)
+    env_option = st.radio("Ortam Seçimi:", ["Hava Direnci Yok (Vakum)", "Hava Direnci Var (Hava)"])
     start = st.button("Simülasyonu Başlat")
 
-# ====== ORTA KOLON: Düşme Animasyonu ======
-anim_placeholder = col2.empty()
+# --- Sağ Panel: Grafikler ---
+fig, axs = plt.subplots(3,1, figsize=(6,6))
+plt.tight_layout(pad=3)
+for ax in axs:
+    ax.grid(True)
 
-# ====== SAĞ KOLON: Grafikler ======
-graph_placeholder = col3.empty()
-
+# --- Simülasyon Fonksiyonu ---
 def simulate_fall(m, h0, k):
     dt = 0.01
-    t = [0]; y = [h0]; v = [0]; a = [g]
+    t = [0]
+    y = [h0]
+    v = [0]
+    a = [g]
     while y[-1] > 0:
-        a_new = g - (k/m)*v[-1] if k != 0 else g
+        if k == 0:
+            a_new = g
+        else:
+            a_new = g - (k/m)*v[-1]
         v_new = v[-1] + a_new*dt
         y_new = y[-1] - v_new*dt
         t.append(t[-1]+dt)
@@ -41,43 +50,42 @@ def simulate_fall(m, h0, k):
         a.append(a_new)
     return np.array(t), np.array(y), np.array(v), np.array(a)
 
+# --- Animasyon Fonksiyonu ---
+def animate_drop(y):
+    fig2, ax2 = plt.subplots(figsize=(3,6))
+    ax2.set_xlim(0,1)
+    ax2.set_ylim(0, max(y)*1.1)
+    ball, = ax2.plot(0.5, y[0], 'ro', markersize=15)
+    
+    def update(frame):
+        ball.set_data(0.5, y[frame])
+        return ball,
+    
+    ani = FuncAnimation(fig2, update, frames=len(y), interval=20, blit=True)
+    return fig2, ani
+
 if start:
-    k = default_k if env == "Hava" else 0.0
+    k = default_k if env_option=="Hava Direnci Var (Hava)" else 0.0
     t, y, v, a = simulate_fall(mass, height, k)
-
-    # Sonuç mesajı
-    if k == 0:
-        st.success(f"Vakumda yere ulaşma süresi: {t[-1]:.2f} s")
+    
+    # Sonuç
+    time_to_ground = t[-1]
+    if k==0:
+        st.sidebar.success(f"Vakumda yere ulaşma süresi: {time_to_ground:.2f} s")
     else:
-        st.success(f"Hava ortamında yere ulaşma süresi: {t[-1]:.2f} s")
+        st.sidebar.success(f"Hava ortamında yere ulaşma süresi: {time_to_ground:.2f} s")
 
-    # ===== Animasyon =====
-    for yi in y[::5]:  # frame atlama, hızlı oynatma
-        fig, ax = plt.subplots(figsize=(3,6))  # orta kolon için orantılı
-        ax.plot(0, yi, 'ro', markersize=20)
-        ax.set_xlim(-1,1)
-        ax.set_ylim(0, height*1.1)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.set_title("Düşme Animasyonu")
-        buf = io.BytesIO()
-        fig.savefig(buf, format="png", bbox_inches='tight')
-        buf.seek(0)
-        img = Image.open(buf)
-        anim_placeholder.image(img)
-        plt.close(fig)
-        time.sleep(0.01)
-
-    # ===== Grafikler =====
-    fig2, ax2 = plt.subplots(3,1, figsize=(5,6))
-    ax2[0].plot(t, y, color='#1976d2')
-    ax2[0].set_title("Yükseklik (m)")
-    ax2[0].grid(True)
-    ax2[1].plot(t, v, color='#388e3c')
-    ax2[1].set_title("Hız (m/s)")
-    ax2[1].grid(True)
-    ax2[2].plot(t, a, color='#fbc02d')
-    ax2[2].set_title("İvme (m/s²)")
-    ax2[2].grid(True)
-    fig2.tight_layout(pad=2.0)
-    graph_placeholder.pyplot(fig2)
+    # --- Animasyon Ortada ---
+    with col2:
+        st.header("Düşme Animasyonu")
+        fig2, ani = animate_drop(y)
+        with _lock:
+            st.pyplot(fig2)
+    
+    # --- Grafikler Sağda ---
+    with col3:
+        st.header("Grafikler")
+        axs[0].clear(); axs[0].plot(t, y, color='#1976d2'); axs[0].set_title("Zaman - Konum"); axs[0].set_xlabel("Zaman (s)"); axs[0].set_ylabel("Yükseklik (m)")
+        axs[1].clear(); axs[1].plot(t, v, color='#388e3c'); axs[1].set_title("Zaman - Hız"); axs[1].set_xlabel("Zaman (s)"); axs[1].set_ylabel("Hız (m/s)")
+        axs[2].clear(); axs[2].plot(t, a, color='#fbc02d'); axs[2].set_title("Zaman - İvme"); axs[2].set_xlabel("Zaman (s)"); axs[2].set_ylabel("İvme (m/s²)")
+        st.pyplot(fig)
